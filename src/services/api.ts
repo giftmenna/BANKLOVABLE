@@ -63,11 +63,12 @@ export const auth = {
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      if (!response.data.user) {
-        throw new Error('User data missing in response');
-      }
-      console.log('✅ [FRONTEND] Login success:', response.data.user);
-      return response.data.user;
+      const user = response.data?.user || response.data?.data?.user;
+if (!user) {
+  throw new Error('User data missing in response');
+}
+return user;
+
     } catch (error: any) {
       console.error('❌ [FRONTEND] Login error:', error.response?.data || error.message);
       throw new Error(error.response?.data?.message || 'Login failed. Please try again.');
