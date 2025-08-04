@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nivalus Bank - Your Digital Bank</title>
+    <meta name="description" content="Secure digital banking application">
+    
+    <!-- Single favicon reference -->
+    <link rel="icon" type="image/png" href="/favicon.ico">
+    
+    <!-- Content Security Policy -->
+   <meta http-equiv="Content-Security-Policy" 
+  content="default-src 'none';
+           img-src 'self' data:;
+           style-src 'self' 'unsafe-inline';
+           script-src 'self';
+           connect-src 'self' http://localhost:5001">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
