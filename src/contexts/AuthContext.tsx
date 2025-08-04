@@ -45,19 +45,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const normalizeUser = (user: any): User => ({
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name || user.fullName || "",
+    email: user.email,
+    isAdmin: user.is_admin ?? user.isAdmin ?? false,
+    balance: user.balance,
+    avatar: user.avatar,
+    status: user.status,
+  });
+
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const user = await services.auth.getCurrentUser();
-        if (user) {
-          setCurrentUser({
-            ...user,
-            fullName: user.full_name ?? user.full_name ?? "",
-            isAdmin: user.is_admin ?? user.is_admin ?? false,
-          });
+        const rawUser = await services.auth.getCurrentUser();
+        if (rawUser) {
+          const user = normalizeUser(rawUser);
+          setCurrentUser(user);
         }
       } catch (err) {
-        console.error("Failed to fetch current user:", err);
+        console.error("❌ Failed to fetch current user:", err);
         setCurrentUser(null);
       } finally {
         setLoading(false);
@@ -67,36 +75,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (username: string, password: string): Promise<User> => {
-  setLoading(true);
-  try {
-    const user = await services.auth.login(username, password);
+    setLoading(true);
+    try {
+      const rawUser = await services.auth.login(username, password);
+      const user = normalizeUser(rawUser);
+      setCurrentUser(user);
 
-    const formattedUser: User = {
-      ...user,
-      fullName: user.full_name ?? user.full_name ?? "",
-      isAdmin: user.is_admin ?? user.is_admin ?? false,
-    };
+      toast.success(`Welcome back, ${user.fullName || user.username}!`);
 
-    setCurrentUser(formattedUser);
-    toast.success(`Welcome back, ${formattedUser.fullName || formattedUser.username}!`);
+      if (user.isAdmin) {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
 
-    // ✅ Redirect based on admin status
-    if (formattedUser.isAdmin) {
-      navigate("/admin", { replace: true });
-    } else {
-      navigate("/dashboard", { replace: true });
+      return user;
+    } catch (error: any) {
+      toast.error(error.message || "Login failed. Please try again.");
+      throw error;
+    } finally {
+      setLoading(false);
     }
-
-    return formattedUser;
-  } catch (error: any) {
-    toast.error(error.message || "Login failed. Please try again.");
-    throw error;
-  } finally {
-    setLoading(false);
-  }
-};
-
-
+  };
 
   const logout = async () => {
     try {
@@ -112,7 +112,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateCurrentUser = async (updates: Partial<User>) => {
     if (!currentUser) return;
     try {
-      // Map status to allowed values if present
       const mappedUpdates: Partial<User> & { status?: "Active" | "Inactive" } = {
         ...updates,
         status:
@@ -123,13 +122,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : undefined,
       };
       const updated = await services.auth.updateUser(currentUser.id, mappedUpdates);
-      // Ensure all required User fields are present
-      setCurrentUser({
-        ...currentUser,
-        ...updated,
-        fullName: updated.full_name ?? currentUser.fullName,
-        isAdmin: updated.is_admin ?? currentUser.isAdmin,
-      });
+      const user = normalizeUser(updated);
+      setCurrentUser(user);
       toast.success("User profile updated successfully.");
     } catch {
       toast.error("Failed to update profile. Please try again.");
@@ -138,13 +132,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshUser = async () => {
     try {
-      const user = await services.auth.getCurrentUser();
-      if (user) {
-        setCurrentUser({
-          ...user,
-          fullName: user.full_name ?? user.full_name ?? "",
-          isAdmin: user.is_admin ?? user.is_admin ?? false,
-        });
+      const rawUser = await services.auth.getCurrentUser();
+      if (rawUser) {
+        const user = normalizeUser(rawUser);
+        setCurrentUser(user);
       } else {
         throw new Error("No user data found");
       }
