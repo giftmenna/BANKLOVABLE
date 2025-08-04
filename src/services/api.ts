@@ -5,6 +5,7 @@ const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_UR
 
 // User type definition
 export type User = {
+  user: any;
   id: string;
   username: string;
   email: string;
@@ -61,11 +62,17 @@ export const auth = {
     console.log('🔍 [FRONTEND] Login attempt for:', username);
     const response = await api.post('/login', { username, password });
 
-    const user = response.data?.user || response.data?.data?.user;
+    const rawUser = response.data?.user || response.data?.data?.user;
 
-    if (!user) {
+    if (!rawUser) {
       throw new Error('User data missing in response');
     }
+
+    const user: User = {
+      ...rawUser,
+      fullName: rawUser.full_name || rawUser.fullName || "",
+      isAdmin: rawUser.is_admin ?? rawUser.isAdmin ?? false, // ✅ ensure boolean
+    };
 
     console.log('✅ [FRONTEND] Login success:', user);
     return user;
@@ -74,6 +81,7 @@ export const auth = {
     throw new Error(error.response?.data?.message || 'Login failed. Please try again.');
   }
 },
+
 
 
   logout: async (): Promise<void> => {
