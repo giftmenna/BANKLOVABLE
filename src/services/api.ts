@@ -94,18 +94,20 @@ export const auth = {
   },
 
 getCurrentUser: async (): Promise<User> => {
-  try {
-    const response = await api.get('/me');
-    const user = response.data?.data?.user;
-    if (!user) {
-      throw new Error('User data missing in response');
-    }
-    return user;
-  } catch (error) {
-    console.error('Failed to fetch current user:', error);
-    throw error;
+  const response = await api.get('/me');
+  const user = response.data?.user;
+
+  if (!user) {
+    throw new Error("User data missing in response");
   }
+
+  return {
+    ...user,
+    fullName: user.full_name ?? user.fullName ?? "",
+    isAdmin: user.is_admin ?? user.isAdmin ?? false,
+  };
 },
+
 
   isLoggedIn: async (): Promise<boolean> => {
     try {

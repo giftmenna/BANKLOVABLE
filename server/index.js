@@ -403,10 +403,10 @@ app.get('/api/me', authenticateToken, async (req, res) => {
         user: {
           id: user.id,
           username: user.username,
-          fullName: user.full_name,
+          full_name: user.full_name,
           email: user.email,
           balance: user.balance,
-          isAdmin: user.is_admin,
+          is_admin: user.is_admin,
           avatar: user.avatar,
         },
       },

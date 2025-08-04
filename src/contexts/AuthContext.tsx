@@ -56,7 +56,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             isAdmin: user.is_admin ?? user.is_admin ?? false,
           });
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to fetch current user:", err);
         setCurrentUser(null);
       } finally {
         setLoading(false);
@@ -72,8 +73,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const formattedUser: User = {
       ...user,
-      fullName: user.full_name ?? user.fullName ?? "",
-      isAdmin: user.is_admin ?? user.isAdmin ?? false,
+      fullName: user.full_name ?? user.full_name ?? "",
+      isAdmin: user.is_admin ?? user.is_admin ?? false,
     };
 
     setCurrentUser(formattedUser);
