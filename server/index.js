@@ -18,14 +18,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables
-const envPath = path.resolve(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-  console.log(`✅ Loaded .env file from ${envPath}`);
-} else {
-  console.error(`❌ No .env file found at ${envPath}`);
-  process.exit(1);
-}
+dotenv.config(); // ✅ Load from system ENV (Render dashboard) or local .env if present
+
 
 // Validate critical environment variables
 if (!process.env.JWT_SECRET) {
