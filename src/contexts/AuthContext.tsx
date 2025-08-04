@@ -66,24 +66,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (username: string, password: string): Promise<User> => {
-    setLoading(true);
-    try {
-      const user = await services.auth.login(username, password);
-      const formattedUser: User = {
-        ...user,
-        fullName: user.full_name ?? user.full_name ?? "",
-        isAdmin: user.is_admin ?? user.is_admin ?? false,
-      };
-      setCurrentUser(formattedUser);
-      toast.success(`Welcome back, ${formattedUser.fullName || formattedUser.username}!`);
-      return formattedUser;
-    } catch (error: any) {
-      toast.error(error.message || "Login failed. Please try again.");
-      throw error;
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const user = await services.auth.login(username, password);
+    const formattedUser: User = {
+      ...user,
+      fullName: user.full_name ?? user.full_name ?? "",
+      isAdmin: user.is_admin ?? user.is_admin ?? false,
+    };
+    setCurrentUser(formattedUser);
+    toast.success(`Welcome back, ${formattedUser.fullName || formattedUser.username}!`);
+
+    // ✅ Redirect based on admin status
+    if (formattedUser.isAdmin) {
+      navigate("/admin", { replace: true });
+    } else {
+      navigate("/dashboard", { replace: true });
     }
-  };
+
+    return formattedUser;
+  } catch (error: any) {
+    toast.error(error.message || "Login failed. Please try again.");
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const logout = async () => {
     try {
