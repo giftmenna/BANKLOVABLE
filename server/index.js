@@ -175,7 +175,17 @@ app.post('/api/signup', [
       return res.status(403).json({ message: 'Registrations are disabled.' });
     }
     const user = await db.createUser(req.body);
-    res.status(201).json({ data: user });
+    res.status(201).json({ data: {
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name,
+    email: user.email,
+    isAdmin: user.is_admin,
+    status: user.status,
+    avatar: user.avatar || null,
+    created_at: user.created_at,
+    balance: user.balance || 0,
+  } });
   } catch (error) {
     if (error.code === '23505') {
       return res.status(400).json({ message: 'Username or email already exists' });
@@ -201,7 +211,19 @@ app.post('/api/users', [
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
     const user = await db.createUser(req.body);
-    res.status(201).json({ data: user });
+    res.status(201).json({
+  data: {
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name,
+    email: user.email,
+    isAdmin: user.is_admin,
+    status: user.status,
+    avatar: user.avatar || null,
+    created_at: user.created_at,
+    balance: user.balance || 0,
+  }
+});
   } catch (error) {
     if (error.code === '23505') {
       return res.status(400).json({ message: 'Username or email already exists' });
