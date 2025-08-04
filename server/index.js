@@ -395,20 +395,22 @@ app.post('/api/logout', authenticateToken, async (req, res) => {
 app.get('/api/me', authenticateToken, async (req, res) => {
   try {
     const user = await db.getUserById(req.user.id);
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    // ✅ Send data in expected shape
     res.json({
-      data: {
-        user: {
-          id: user.id,
-          username: user.username,
-          full_name: user.full_name,
-          email: user.email,
-          balance: user.balance,
-          is_admin: user.is_admin,
-          avatar: user.avatar,
-        },
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name,
+        email: user.email,
+        balance: user.balance,
+        is_admin: user.is_admin,
+        avatar: user.avatar || null,
+        status: user.status || "Active",
       },
     });
   } catch (error) {
@@ -416,6 +418,7 @@ app.get('/api/me', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Server error fetching user data' });
   }
 });
+
 
 app.get('/api/session', authenticateToken, async (req, res) => {
   try {
