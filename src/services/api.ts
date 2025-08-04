@@ -57,23 +57,24 @@ api.interceptors.response.use(
  */
 export const auth = {
   login: async (username: string, password: string): Promise<User> => {
-    try {
-      console.log('🔍 [FRONTEND] Login attempt for:', username);
-      const response = await api.post('/login', { username, password });
-      if (!response.data) {
-        throw new Error('No data received from server');
-      }
-      const user = response.data?.user || response.data?.data?.user;
-if (!user) {
-  throw new Error('User data missing in response');
-}
-return user;
+  try {
+    console.log('🔍 [FRONTEND] Login attempt for:', username);
+    const response = await api.post('/login', { username, password });
 
-    } catch (error: any) {
-      console.error('❌ [FRONTEND] Login error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || 'Login failed. Please try again.');
+    const user = response.data?.user || response.data?.data?.user;
+
+    if (!user) {
+      throw new Error('User data missing in response');
     }
-  },
+
+    console.log('✅ [FRONTEND] Login success:', user);
+    return user;
+  } catch (error: any) {
+    console.error('❌ [FRONTEND] Login error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Login failed. Please try again.');
+  }
+},
+
 
   logout: async (): Promise<void> => {
     try {

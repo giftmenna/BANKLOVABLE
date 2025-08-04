@@ -317,38 +317,51 @@ app.post('/api/login', [
     console.log(`🚫 Too many login attempts from ${ip}`);
     return res.status(429).json({ message: 'Too many login attempts. Please try again later.' });
   }
+
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log("❌ Validation errors:", errors.array());
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
+
     const { username, password } = req.body;
     console.log("🔐 Login attempt:", username);
     const user = await db.getUserByUsername(username);
-    if (!user || user.status !== 'Active') {
-      console.log("❌ Invalid username or inactive status");
+
+    if (!user) {
+      console.log("❌ User not found:", username);
       loginAttempts.set(ip, attempts + 1);
-      return res.status(401).json({ message: 'Invalid username or password.' });
+      return res.status(401).json({ message: 'User not found. Please check your username.' });
     }
+
+    if (user.status !== 'Active') {
+      console.log("❌ Inactive account:", username);
+      return res.status(403).json({ message: 'Your account is inactive. Please contact support.' });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
+      console.log("❌ Invalid password for:", username);
       loginAttempts.set(ip, attempts + 1);
-      return res.status(401).json({ message: 'Invalid username or password.' });
+      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
     }
+
     loginAttempts.delete(ip);
     await db.updateUserLastLogin(user.id);
     const token = jwt.sign(
       { id: user.id, username: user.username, isAdmin: user.is_admin },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' },
+      { expiresIn: '1h' }
     );
+
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Strict',
       maxAge: 60 * 60 * 1000,
     });
+
     const responseData = {
       user: {
         id: user.id,
@@ -359,6 +372,7 @@ app.post('/api/login', [
         avatar: user.avatar,
       },
     };
+
     console.log("✅ Login success, sending user data:", responseData);
     res.json(responseData);
   } catch (error) {
@@ -366,6 +380,7 @@ app.post('/api/login', [
     res.status(500).json({ message: 'Server error during login', error: error.message });
   }
 });
+
 
 app.post('/api/logout', authenticateToken, async (req, res) => {
   try {
