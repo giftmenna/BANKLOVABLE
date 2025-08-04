@@ -212,7 +212,7 @@ app.post('/api/users', [
     }
     const user = await db.createUser(req.body);
     res.status(201).json({
-  data: {
+  user: {
     id: user.id,
     username: user.username,
     fullName: user.full_name,
@@ -542,7 +542,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     res.json({
-      data: {
+      user: {
         id: user.id,
         username: user.username,
         fullName: user.full_name,
