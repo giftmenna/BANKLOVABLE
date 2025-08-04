@@ -69,11 +69,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   setLoading(true);
   try {
     const user = await services.auth.login(username, password);
+
     const formattedUser: User = {
       ...user,
-      fullName: user.full_name ?? user.full_name ?? "",
-      isAdmin: user.is_admin ?? user.is_admin ?? false,
+      fullName: user.full_name ?? user.fullName ?? "",
+      isAdmin: user.is_admin ?? user.isAdmin ?? false,
     };
+
     setCurrentUser(formattedUser);
     toast.success(`Welcome back, ${formattedUser.fullName || formattedUser.username}!`);
 
@@ -92,6 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(false);
   }
 };
+
 
 
   const logout = async () => {

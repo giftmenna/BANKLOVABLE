@@ -249,7 +249,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Admin access required' });
     }
     const users = await db.getUsers();
-    res.json({ data: users });
+    res.json({ user }); // ✅ this format only
   } catch (error) {
     console.error('❌ Error fetching users:', error.message);
     res.status(500).json({ message: 'Server error fetching users', error: error.message });
