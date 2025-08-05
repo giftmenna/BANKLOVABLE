@@ -124,7 +124,7 @@ export default function TransactionHistory() {
           <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">Transaction History</h1>
-              <p className="text-muted-foreground">View all your transactions and receipts</p>
+              <p className="text-muted-foreground">View all transactions and download PDF</p>
             </div>
             <Button
               variant="outline"
