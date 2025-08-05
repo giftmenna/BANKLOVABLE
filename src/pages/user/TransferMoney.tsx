@@ -206,6 +206,7 @@ export default function TransferMoney() {
   
   // Start the transaction loading animation
   const startTransactionProcess = () => {
+    console.log('🚀 Starting transaction process...');
     setShowPinConfirmation(false);
     setShowLoadingAnimation(true);
     
@@ -213,11 +214,14 @@ export default function TransferMoney() {
     const interval = setInterval(() => {
       progress += 5;
       setLoadingProgress(progress);
+      console.log(`📊 Progress: ${progress}%`);
       
       if (progress >= 100) {
+        console.log('🎯 Progress reached 100%, calling completeTransaction...');
         clearInterval(interval);
         // Add a small delay to ensure the progress bar shows 100%
         setTimeout(() => {
+          console.log('⏰ Timeout completed, executing completeTransaction...');
           completeTransaction();
         }, 500);
       }
@@ -734,19 +738,7 @@ export default function TransferMoney() {
         This may take a few moments
       </p>
       
-      {/* Debug button - remove this after testing */}
-      <Button 
-        onClick={() => {
-          console.log('🔧 Debug: Manually triggering completion');
-          setShowLoadingAnimation(false);
-          setShowCompletion(true);
-          setIsLoading(false);
-        }}
-        className="mt-4"
-        variant="outline"
-      >
-        Debug: Show Completion
-      </Button>
+
       
       {/* Add some keyframes for the animation (you should add this to your global CSS) */}
       <style>{`
