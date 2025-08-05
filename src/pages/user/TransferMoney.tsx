@@ -226,112 +226,101 @@ export default function TransferMoney() {
   
   // Process the transaction after the animation completes
   const completeTransaction = async () => {
-    try {
-      console.log('🔄 Starting transaction completion...');
-      console.log('🔍 Current transaction data:', currentTransaction);
-      console.log('🔍 Current user:', currentUser);
-      
-      if (!currentUser?.id) {
-        throw new Error("User not authenticated.");
-      }
-      
-      console.log('✅ User authenticated, preparing transaction data...');
-      let recipientDetails;
-      
-      switch (currentTransaction.transferType) {
-        case "Wire Transfer":
-          recipientDetails = {
-            name: currentTransaction.recipientName,
-            accountNumber: currentTransaction.accountNumber,
-            swiftCode: currentTransaction.swiftCode,
-            bankName: currentTransaction.bankName,
-            bankAddress: currentTransaction.bankAddress,
-          };
-          break;
-        case "Bank Transfer":
-          recipientDetails = {
-            name: currentTransaction.recipientName,
-            accountNumber: currentTransaction.accountNumber,
-            routingNumber: currentTransaction.routingNumber,
-          };
-          break;
-        case "P2P":
-          recipientDetails = {
-            identifier: currentTransaction.recipientIdentifier,
-          };
-          break;
-      }
-      
-      console.log('📤 Creating transaction in database...');
-      const transactionData = {
-        user_id: currentUser.id,
-        type: "Transfer", // All transfer types should be "Transfer" for balance updates
-        amount: currentTransaction.amount,
-        date_time: new Date().toISOString(),
-      };
-      
-      console.log('📋 Transaction data:', transactionData);
-      
-      let response;
-      try {
-        response = await transactions.create(transactionData as any);
-        console.log('✅ Transaction created successfully:', response);
-      } catch (apiError) {
-        console.warn('⚠️ API call failed, using fallback transaction ID:', apiError);
-        response = { id: `TXN${Math.floor(Math.random() * 1000000)}` };
-      }
-      
-      const completedTransaction = {
-        ...currentTransaction,
-        id: (response as any).id || `TXN${Math.floor(Math.random() * 1000000)}`,
-        date_time: new Date().toISOString(),
-        status: "Completed",
-        recipient_details: recipientDetails,
-      };
-      
-      console.log('📝 Setting completed transaction:', completedTransaction);
-      setCurrentTransaction(completedTransaction);
-      
-      console.log('🔊 Playing notification sound...');
-      // Play notification sound for successful transaction
-      let notificationMessage;
-      try {
-        notificationMessage = await showTransactionNotification(
-          'sent', 
-          currentTransaction.amount, 
-          `${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`
-        );
-      } catch (soundError) {
-        console.warn('⚠️ Notification sound failed, continuing without sound:', soundError);
-        notificationMessage = `💸 Sent $${currentTransaction.amount.toFixed(2)} - ${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`;
-      }
-      
-      console.log('📢 Showing success toast...');
-      // Show success toast with sound for 30 seconds
-      toast.success(notificationMessage, {
-        duration: 30000, // 30 seconds
-        position: "top-center",
-      });
-      
-      console.log('✅ Transaction completed successfully!');
-      setShowLoadingAnimation(false);
-      setShowCompletion(true);
-      setIsLoading(false);
-      
-    } catch (error: any) {
-      console.error("❌ Error completing transaction:", error);
-      console.error("❌ Error details:", {
-        message: error.message,
-        stack: error.stack,
-        currentUser: currentUser?.id,
-        transactionData: currentTransaction
-      });
-      
-      toast.error("Transaction failed. Please try again.");
+    console.log('🔄 Starting transaction completion...');
+    console.log('🔍 Current transaction data:', currentTransaction);
+    console.log('🔍 Current user:', currentUser);
+    
+    if (!currentUser?.id) {
+      console.error("❌ User not authenticated");
+      toast.error("User not authenticated. Please log in again.");
       setShowLoadingAnimation(false);
       setIsLoading(false);
-      navigate("/dashboard");
+      navigate("/login");
+      return;
     }
+    
+    console.log('✅ User authenticated, preparing transaction data...');
+    let recipientDetails;
+    
+    switch (currentTransaction.transferType) {
+      case "Wire Transfer":
+        recipientDetails = {
+          name: currentTransaction.recipientName,
+          accountNumber: currentTransaction.accountNumber,
+          swiftCode: currentTransaction.swiftCode,
+          bankName: currentTransaction.bankName,
+          bankAddress: currentTransaction.bankAddress,
+        };
+        break;
+      case "Bank Transfer":
+        recipientDetails = {
+          name: currentTransaction.recipientName,
+          accountNumber: currentTransaction.accountNumber,
+          routingNumber: currentTransaction.routingNumber,
+        };
+        break;
+      case "P2P":
+        recipientDetails = {
+          identifier: currentTransaction.recipientIdentifier,
+        };
+        break;
+    }
+    
+    console.log('📤 Creating transaction in database...');
+    const transactionData = {
+      user_id: currentUser.id,
+      type: "Transfer",
+      amount: currentTransaction.amount,
+      date_time: new Date().toISOString(),
+    };
+    
+    console.log('📋 Transaction data:', transactionData);
+    
+    let response;
+    try {
+      response = await transactions.create(transactionData as any);
+      console.log('✅ Transaction created successfully:', response);
+    } catch (apiError) {
+      console.warn('⚠️ API call failed, using fallback transaction ID:', apiError);
+      response = { id: `TXN${Math.floor(Math.random() * 1000000)}` };
+    }
+    
+    const completedTransaction = {
+      ...currentTransaction,
+      id: (response as any).id || `TXN${Math.floor(Math.random() * 1000000)}`,
+      date_time: new Date().toISOString(),
+      status: "Completed",
+      recipient_details: recipientDetails,
+    };
+    
+    console.log('📝 Setting completed transaction:', completedTransaction);
+    setCurrentTransaction(completedTransaction);
+    
+    console.log('🔊 Playing notification sound...');
+    let notificationMessage;
+    try {
+      notificationMessage = await showTransactionNotification(
+        'sent', 
+        currentTransaction.amount, 
+        `${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`
+      );
+    } catch (soundError) {
+      console.warn('⚠️ Notification sound failed, continuing without sound:', soundError);
+      notificationMessage = `💸 Sent $${currentTransaction.amount.toFixed(2)} - ${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`;
+    }
+    
+    console.log('📢 Showing success toast...');
+    toast.success(notificationMessage, {
+      duration: 30000,
+      position: "top-center",
+    });
+    
+    console.log('✅ Transaction completed successfully!');
+    console.log('🔄 Setting UI states...');
+    setShowLoadingAnimation(false);
+    setShowCompletion(true);
+    setIsLoading(false);
+    console.log('✅ UI states updated - completion screen should now be visible');
   };
   
   // Generate PDF receipt
@@ -391,6 +380,7 @@ export default function TransferMoney() {
     showPinConfirmation,
     showLoadingAnimation,
     showCompletion,
+    currentTransaction: !!currentTransaction,
   });
 
   return (
@@ -743,6 +733,20 @@ export default function TransferMoney() {
         <br />
         This may take a few moments
       </p>
+      
+      {/* Debug button - remove this after testing */}
+      <Button 
+        onClick={() => {
+          console.log('🔧 Debug: Manually triggering completion');
+          setShowLoadingAnimation(false);
+          setShowCompletion(true);
+          setIsLoading(false);
+        }}
+        className="mt-4"
+        variant="outline"
+      >
+        Debug: Show Completion
+      </Button>
       
       {/* Add some keyframes for the animation (you should add this to your global CSS) */}
       <style>{`
