@@ -100,8 +100,13 @@ export default function TransferMoney() {
   const form = useForm<TransferFormValues>({
     resolver: zodResolver(transferFormSchema),
     defaultValues: {
-      transferType: "Bank Transfer" as const,
-      amount: 0,
+      transferType: "Wire Transfer" as const,
+      amount: undefined,
+      recipientName: "",
+      accountNumber: "",
+      swiftCode: "",
+      bankName: "",
+      bankAddress: "",
       memo: "",
     },
     mode: "onChange",
@@ -134,7 +139,7 @@ export default function TransferMoney() {
   }, [currentUser?.id, navigate]);
 
   // Handle transfer submission
-  const onSubmit = async (data: TransferFormValues) => {
+  const onSubmit = async (data: any) => {
     try {
       console.log("Form errors:", form.formState.errors);
       if (data.amount > balance) {
@@ -315,9 +320,8 @@ export default function TransferMoney() {
       
       toast.error("Transaction failed. Please try again.");
       setShowLoadingAnimation(false);
-      navigate("/dashboard");
-    } finally {
       setIsLoading(false);
+      navigate("/dashboard");
     }
   };
   
