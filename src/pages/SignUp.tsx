@@ -53,7 +53,13 @@ export default function SignUp() {
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
     try {
-      console.log('Submitting sign-up form:', { ...data, password: '***' });
+      console.log('🔍 [SignUp] Submitting sign-up form:', { 
+        ...data, 
+        password: '***',
+        pin: data.pin,
+        pinLength: data.pin.length,
+        pinType: typeof data.pin
+      });
       
       // Map form fields to the expected API format
       const userData = {
@@ -65,6 +71,12 @@ export default function SignUp() {
         phone: data.phone,
         isSignup: true // Flag to indicate this is a signup
       };
+
+      console.log('📤 [SignUp] Sending user data to API:', { 
+        ...userData, 
+        password: '***',
+        pin: userData.pin 
+      });
 
       // Call the users.create API 
       const response = await users.create(userData);

@@ -11,11 +11,12 @@ import {
   ArrowRight,
   Settings,
   UserCheck,
-  Receipt
+  Receipt,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { users, transactions } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -23,22 +24,36 @@ import { format } from "date-fns";
 export default function Admin() {
   const { currentUser } = useAuth();
   const [recentActivityCount, setRecentActivityCount] = useState(5);
+  const queryClient = useQueryClient();
 
   // Fetch users
-  const { data: usersList, isLoading: isLoadingUsers } = useQuery({
+  const { data: usersList, isLoading: isLoadingUsers, refetch: refetchUsers } = useQuery({
     queryKey: ['users'],
     queryFn: users.getAll
   });
 
   // Fetch transactions
-  const { data: transactionList, isLoading: isLoadingTransactions } = useQuery({
+  const { data: transactionList, isLoading: isLoadingTransactions, refetch: refetchTransactions } = useQuery({
     queryKey: ['transactions'],
     queryFn: transactions.getAll
   });
 
+  // Refresh all data
+  const handleRefresh = async () => {
+    await Promise.all([
+      refetchUsers(),
+      refetchTransactions()
+    ]);
+  };
+
   // Calculate today's date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Debug logging
+  console.log('🔍 [Admin] Users list:', usersList);
+  console.log('🔍 [Admin] Users list type:', typeof usersList);
+  console.log('🔍 [Admin] Is array:', Array.isArray(usersList));
 
   // User metrics
   const totalUsers = Array.isArray(usersList) ? usersList.length : 0;
@@ -92,11 +107,22 @@ export default function Admin() {
       <Navbar />
       <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-bank-gold">Admin Dashboard</h1>
-            <p className="text-muted-foreground mt-2">
-              Welcome back, {currentUser?.fullName || currentUser?.username}
-            </p>
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-bank-gold">Admin Dashboard</h1>
+              <p className="text-muted-foreground mt-2">
+                Welcome back, {currentUser?.fullName || currentUser?.username}
+              </p>
+            </div>
+            <Button 
+              onClick={handleRefresh} 
+              disabled={isLoadingUsers || isLoadingTransactions}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${(isLoadingUsers || isLoadingTransactions) ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
 
           {/* Quick Stats */}

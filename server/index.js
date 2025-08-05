@@ -66,10 +66,10 @@ app.use((req, res, next) => {
       'Content-Security-Policy',
       [
         "default-src 'self'",
-        `connect-src 'self' ${allowedOrigins.join(' ')}`,
+        `connect-src 'self' ${allowedOrigins.join(' ')} http://localhost:3000`,
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: https://via.placeholder.com", // Allow placeholder images
+        "img-src 'self' data: blob: https://via.placeholder.com https://placehold.co http://localhost:3000", // Allow localhost images and blob URLs
         "font-src 'self'",
         "frame-src 'self'",
       ].join('; ')
@@ -109,7 +109,7 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const userId = req.params.userId || uuidv4();
+    const userId = req.params.id || req.params.userId || uuidv4();
     const fileExt = path.extname(file.originalname);
     cb(null, `avatar-${userId}${fileExt}`);
   },
@@ -575,24 +575,51 @@ app.get('/api/users/:userId/transactions', authenticateToken, async (req, res) =
   }
 });
 
+// Avatar update endpoint with file upload
 app.patch('/api/users/:id/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
   try {
+    console.log('🔄 [SERVER] Avatar upload request received');
+    console.log('📋 [SERVER] Request details:', {
+      userId: req.params.id,
+      user: req.user.id,
+      isAdmin: req.user.isAdmin,
+      hasFile: !!req.file,
+      fileDetails: req.file ? {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path
+      } : null
+    });
+
     if (!req.user.isAdmin && req.params.id !== req.user.id) {
+      console.log('❌ [SERVER] Permission denied');
       return res.status(403).json({ message: 'You can only update your own avatar' });
     }
+    
     if (!req.file) {
+      console.log('❌ [SERVER] No file uploaded');
       return res.status(400).json({ message: 'Avatar file is required' });
     }
+    
+    console.log('✅ [SERVER] File received, updating database...');
     const avatarPath = `/Uploads/avatars/${req.file.filename}`;
     const user = await db.updateUserAvatar(req.params.id, avatarPath);
-    res.json({ 
+    
+    console.log('✅ [SERVER] Database updated, sending response');
+    const response = { 
       data: { 
         message: 'Avatar updated successfully', 
-        avatar: user.avatar 
+        avatar: avatarPath 
       } 
-    });
+    };
+    console.log('📤 [SERVER] Sending response:', response);
+    
+    res.json(response);
   } catch (error) {
-    console.error('❌ Error updating user avatar:', error.message);
+    console.error('❌ [SERVER] Error updating user avatar:', error.message);
+    console.error('❌ [SERVER] Error stack:', error.stack);
     res.status(500).json({ message: 'Server error updating avatar', error: error.message });
   }
 });
@@ -612,6 +639,106 @@ app.delete('/api/users/:id/avatar', authenticateToken, async (req, res) => {
 
 // Static files and SPA fallback
 const staticDir = path.join(__dirname, 'dist');
+
+// Debug endpoint to check avatar files
+app.get('/api/debug/avatars', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadDir);
+    const fileDetails = files.map(file => {
+      const filePath = path.join(uploadDir, file);
+      const stats = fs.statSync(filePath);
+      return {
+        name: file,
+        size: stats.size,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        path: filePath
+      };
+    });
+    res.json({ 
+      uploadDir, 
+      files: fileDetails, 
+      fileCount: files.length,
+      exists: fs.existsSync(uploadDir),
+      permissions: fs.statSync(uploadDir).mode
+    });
+  } catch (error) {
+    res.json({ error: error.message, uploadDir });
+  }
+});
+
+// Test endpoint to serve a specific avatar file
+app.get('/api/test-avatar/:filename', (req, res) => {
+  try {
+    const filePath = path.join(uploadDir, req.params.filename);
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ error: 'File not found', filePath });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Direct avatar serving endpoint
+app.get('/api/avatar/:filename', (req, res) => {
+  try {
+    // Set CORS headers for avatar images
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    const filePath = path.join(uploadDir, req.params.filename);
+    if (fs.existsSync(filePath)) {
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png'
+      };
+      res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ error: 'Avatar not found', filePath });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Test page to check avatar display
+app.get('/test-avatar', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadDir);
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Avatar Test</title></head>
+      <body>
+        <h1>Avatar Test Page</h1>
+        <p>Upload directory: ${uploadDir}</p>
+        <p>Files found: ${files.length}</p>
+        <ul>
+          ${files.map(file => `
+            <li>
+              <strong>${file}</strong><br>
+              <img src="/Uploads/avatars/${file}" style="width: 100px; height: 100px; border: 1px solid #ccc;" 
+                   onerror="this.style.display='none'; this.nextSibling.style.display='block';">
+              <span style="display:none; color:red;">Failed to load: ${file}</span>
+            </li>
+          `).join('')}
+        </ul>
+      </body>
+      </html>
+    `;
+    res.send(html);
+  } catch (error) {
+    res.send(`<h1>Error</h1><p>${error.message}</p>`);
+  }
+});
+
 app.use('/Uploads/avatars', express.static(uploadDir));
 app.use(express.static(staticDir));
 app.use(history({

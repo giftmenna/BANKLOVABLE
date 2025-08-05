@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { showTransactionNotification } from "@/utils/notifications";
 import { users, transactions } from "@/services/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
@@ -53,20 +54,19 @@ interface Transaction {
 }
 
 export default function Dashboard() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [showBalance, setShowBalance] = useState(true);
   const [userDetails, setUserDetails] = useState<any>(null);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [spendingData, setSpendingData] = useState<Record<string, number>>({});
+  const [previousTransactionCount, setPreviousTransactionCount] = useState(0);
   // Default to current month and year
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth().toString());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const isCredit = (type: string) => {
     const lower = type.toLowerCase();
@@ -110,7 +110,29 @@ export default function Dashboard() {
 
         const txs = await transactions.getByUserId(currentUser.id);
         const txList = Array.isArray(txs) ? txs : [];
-        setRecentTransactions(txList.slice(0, 5));
+        
+        // Check for new transactions and play notification sound
+        if (txList.length > previousTransactionCount && previousTransactionCount > 0) {
+          const newTransactions = txList.slice(0, txList.length - previousTransactionCount);
+          if (newTransactions.length > 0) {
+            const latestTransaction = newTransactions[0];
+            const isReceived = isCredit(latestTransaction.type);
+            const notificationMessage = await showTransactionNotification(
+              isReceived ? 'received' : 'sent',
+              latestTransaction.amount,
+              (latestTransaction as any).description || latestTransaction.type
+            );
+            
+            // Show toast notification for 30 seconds
+            toast.success(notificationMessage, {
+              duration: 30000, // 30 seconds
+              position: "top-center",
+            });
+          }
+        }
+        
+        setPreviousTransactionCount(txList.length);
+        setRecentTransactions(txList.slice(0, 5) as any);
 
         const selectedTransactions = txList.filter((tx) => {
           const txDate = new Date(tx.date_time);
@@ -123,7 +145,7 @@ export default function Dashboard() {
         const spending = selectedTransactions.reduce(
           (acc: Record<string, number>, tx) => {
             if (!isDebit(tx.type)) return acc;
-            const description = tx.description?.toLowerCase() || "";
+            const description = (tx as any).description?.toLowerCase() || "";
             const typeText = tx.type.toLowerCase();
             let category: string;
             if (description.includes("bank") || typeText.includes("bank")) {
@@ -157,90 +179,9 @@ export default function Dashboard() {
     if (currentUser?.id) fetchUserData();
   }, [currentUser?.id, selectedMonth, selectedYear]);
 
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (!file.type.match(/image\/(jpeg|png|jpg)/)) {
-        toast.error("Please select a valid image file (JPEG, JPG, or PNG)");
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("Image size should be less than 10MB");
-        return;
-      }
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const uploadAvatar = async () => {
-    if (!avatarFile || !currentUser?.id) return;
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64 = reader.result as string;
-          const response = await users.updateAvatar(currentUser.id, {
-            avatar: base64,
-          });
-          
-          if (response && response.avatar) {
-            // Update local state
-            setUserDetails({ ...userDetails, avatar: response.avatar });
-            setAvatarFile(null);
-            setAvatarPreview(null);
-            toast.success("Avatar updated successfully");
-            
-            // Refresh user data to ensure consistency
-            try {
-              const refreshedUser = await users.getById(currentUser.id);
-              setUserDetails(refreshedUser);
-            } catch (refreshError) {
-              console.warn("Failed to refresh user data:", refreshError);
-            }
-          } else {
-            toast.error("Failed to update avatar - no response data");
-          }
-        } catch (error: any) {
-          console.error("Avatar upload error:", error);
-          toast.error(error.message || "Failed to upload avatar. Please try again.");
-        }
-      };
-      reader.readAsDataURL(avatarFile);
-    } catch (error: any) {
-      console.error("File reading error:", error);
-      toast.error("Failed to read file. Please try again.");
-    }
-  };
 
-  const removeAvatar = async () => {
-    if (!currentUser?.id) return;
-    try {
-      await users.deleteAvatar(currentUser.id);
-      setAvatarPreview(null);
-      setAvatarFile(null);
-      setUserDetails({ ...userDetails, avatar: undefined });
-      toast.success("Avatar removed successfully");
-      
-      // Refresh user data to ensure consistency
-      try {
-        const refreshedUser = await users.getById(currentUser.id);
-        setUserDetails(refreshedUser);
-      } catch (refreshError) {
-        console.warn("Failed to refresh user data:", refreshError);
-      }
-    } catch (error: any) {
-      console.error("Remove avatar error:", error);
-      toast.error(error.message || "Failed to remove avatar. Please try again.");
-    }
-  };
-
-  const toggleBalanceVisibility = () => setShowBalance(!showBalance);
-  const triggerFileInput = () => fileInputRef.current?.click();
+    const toggleBalanceVisibility = () => setShowBalance(!showBalance);
 
   if (isLoading) {
     return (
@@ -257,14 +198,13 @@ export default function Dashboard() {
     );
   }
 
-  // Build the avatar source URL or use the base64 data
-  const avatarSrc =
-    avatarPreview ||
-    (userDetails?.avatar &&
-    !userDetails.avatar.startsWith("data:") &&
-    userDetails.avatar !== ""
-      ? `/uploads/avatars/${userDetails.avatar}`
-      : userDetails?.avatar || "");
+  // Avatar source logic
+  const avatarSrc = userDetails?.avatar ? `/api/avatar/${userDetails.avatar.split('/').pop()}` : "";
+  const avatarSrcWithTimestamp = avatarSrc ? `${avatarSrc}?t=${Date.now()}` : "";
+
+
+
+  // Test avatar URL accessibility (only for debugging) - REMOVED to prevent render issues
 
   // Category colours and spending breakdown
   const categoryColors: Record<string, string> = {
@@ -359,15 +299,22 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <User className="h-6 w-6 mr-2 text-bank-gold" />
-                  Your Profile
+                  Welcome Back!
                 </CardTitle>
                 <CardDescription className="text-gray-300">
-                  Manage your personal information
+                  {currentUser?.fullName || currentUser?.username}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-4">
                 <Avatar className="h-24 w-24 border-2 border-bank-gold rounded-full">
-                  <AvatarImage src={avatarSrc} />
+                  <AvatarImage 
+                    src={avatarSrcWithTimestamp} 
+                    onLoad={() => console.log('✅ Avatar image loaded successfully:', avatarSrcWithTimestamp)}
+                    onError={(e) => {
+                      console.error('❌ Avatar image failed to load:', avatarSrcWithTimestamp, e);
+                    }}
+                    style={{ objectFit: 'cover' }}
+                  />
                   <AvatarFallback className="bg-bank-gold text-bank-dark-text text-2xl">
                     {currentUser?.fullName
                       ? currentUser.fullName.substring(0, 2).toUpperCase()
@@ -376,52 +323,15 @@ export default function Dashboard() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-2 w-full">
-                  <input
-                    ref={fileInputRef}
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg"
-                    onChange={handleAvatarChange}
-                    className="sr-only"
-                  />
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={triggerFileInput}
+                    onClick={() => navigate('/profile')}
                     className="w-full bg-transparent border-bank-gold text-bank-gold hover:bg-bank-gold hover:text-bank-dark-text"
                   >
-                    Change Profile Picture
+                    <User className="h-4 w-4 mr-2" />
+                    Manage Profile
                   </Button>
-                  {avatarFile && (
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={uploadAvatar}
-                        variant="default"
-                        className="flex-1 bg-bank-gold hover:bg-bank-gold/90 text-bank-dark-text"
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setAvatarFile(null);
-                          setAvatarPreview(null);
-                        }}
-                        variant="destructive"
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-                  {(userDetails?.avatar || avatarPreview) && !avatarFile && (
-                    <Button
-                      onClick={removeAvatar}
-                      variant="destructive"
-                      className="w-full"
-                    >
-                      Remove Profile Picture
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>

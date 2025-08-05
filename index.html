@@ -12,10 +12,10 @@
     <!-- Content Security Policy -->
    <meta http-equiv="Content-Security-Policy" 
   content="default-src 'none';
-           img-src 'self' data:;
+           img-src 'self' data: blob: https://via.placeholder.com https://placehold.co http://localhost:3000;
            style-src 'self' 'unsafe-inline';
            script-src 'self';
-           connect-src 'self' http://localhost:5001">
+           connect-src 'self' http://localhost:5001 http://localhost:3000">
   </head>
   <body>
     <div id="root"></div>

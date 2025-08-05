@@ -43,6 +43,12 @@ export function Navbar() {
                 </>
               ) : (
                 <>
+                  <Link to="/dashboard" className="text-foreground hover:text-bank-gold px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    Dashboard
+                  </Link>
+                  <Link to="/profile" className="text-foreground hover:text-bank-gold px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    Profile
+                  </Link>
                   {currentUser.isAdmin && (
                     <Link to="/admin" className="text-foreground hover:text-bank-gold px-3 py-2 rounded-md text-sm font-medium transition-colors">
                       Admin
@@ -112,6 +118,20 @@ export function Navbar() {
               </>
             ) : (
               <>
+                <Link 
+                  to="/dashboard" 
+                  className="text-foreground hover:text-bank-gold block px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/profile" 
+                  className="text-foreground hover:text-bank-gold block px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Profile
+                </Link>
                 {currentUser.isAdmin && (
                   <Link 
                     to="/admin" 

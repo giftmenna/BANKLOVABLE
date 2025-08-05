@@ -10,18 +10,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar, CheckCircle, CircleDollarSign, History, Printer, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { transactions } from "@/services/api";
+import { transactions, Transaction as APITransaction } from "@/services/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { generatePDFReceipt } from "@/components/PDFReceipt";
 
-interface Transaction {
+// Extended transaction interface for the UI
+interface Transaction extends Omit<APITransaction, 'type'> {
   id: string;
-  user_id: string;
-  type: string;
-  amount: number;
-  description: string;
-  date_time: string;
-  status: string;
+  type: 'Deposit' | 'Withdrawal' | 'Transfer' | 'Bill Pay' | 'Bank Transfer' | 'Wire Transfer' | 'P2P';
+  description?: string;
+  status?: string;
   recipient_details?: any;
 }
 
@@ -62,68 +61,59 @@ export default function TransactionHistory() {
     setShowReceipt(true);
   };
 
-  // Print receipt
-  const printReceipt = () => {
-    if (!selectedTransaction) return;
+  // Generate PDF receipt
+  const printReceipt = async () => {
+    if (!selectedTransaction || !currentUser) return;
 
-    let recipientInfo = "";
-    const recipientDetails = selectedTransaction.recipient_details || {};
+    try {
+      const recipientDetails = selectedTransaction.recipient_details || {};
+      
+      // Prepare recipient data based on transaction type
+      let recipientData: any = {
+        name: recipientDetails.name || 'N/A'
+      };
 
-    if (selectedTransaction.type === "Bank Transfer") {
-      recipientInfo = `
-Recipient: ${recipientDetails.name || 'N/A'}
-Account Number: ****${recipientDetails.accountNumber?.slice(-4) || '0000'}
-Routing Number: ${recipientDetails.routingNumber || 'N/A'}`;
-    } else if (selectedTransaction.type === "Wire Transfer") {
-      recipientInfo = `
-Recipient: ${recipientDetails.name || 'N/A'}
-Account Number: ****${recipientDetails.accountNumber?.slice(-4) || '0000'}
-SWIFT Code: ${recipientDetails.swiftCode || 'N/A'}
-Bank Name: ${recipientDetails.bankName || 'N/A'}
-Bank Address: ${recipientDetails.bankAddress || 'N/A'}`;
-    } else if (selectedTransaction.type === "P2P") {
-      const identifier = recipientDetails.identifier || 'N/A';
-      recipientInfo = `
-Recipient: ${identifier.includes('@') ? 'Email' : 'Phone'}: ${identifier}`;
+      if (selectedTransaction.type === "Bank Transfer") {
+        recipientData = {
+          name: recipientDetails.name || 'N/A',
+          accountNumber: recipientDetails.accountNumber,
+          routingNumber: recipientDetails.routingNumber
+        };
+      } else if (selectedTransaction.type === "Wire Transfer") {
+        recipientData = {
+          name: recipientDetails.name || 'N/A',
+          accountNumber: recipientDetails.accountNumber,
+          swiftCode: recipientDetails.swiftCode,
+          bankName: recipientDetails.bankName,
+          bankAddress: recipientDetails.bankAddress
+        };
+      } else if (selectedTransaction.type === "P2P") {
+        recipientData = {
+          name: recipientDetails.identifier || 'N/A',
+          identifier: recipientDetails.identifier
+        };
+      }
+
+      const receiptData = {
+        transactionId: selectedTransaction.id,
+        dateTime: selectedTransaction.date_time,
+        transferType: selectedTransaction.type,
+        status: selectedTransaction.status || 'Completed',
+        sender: {
+          username: currentUser.username,
+          email: currentUser.email
+        },
+        recipient: recipientData,
+        amount: selectedTransaction.amount,
+        memo: selectedTransaction.description
+      };
+
+      await generatePDFReceipt(receiptData);
+      toast.success("PDF receipt generated successfully!");
+    } catch (error) {
+      console.error("Error generating PDF receipt:", error);
+      toast.error("Failed to generate PDF receipt. Please try again.");
     }
-
-    const receipt = `
-======================================
-           TRANSACTION RECEIPT
-======================================
-Nivalus Bank - Your Trusted Financial Partner
-
-Transaction ID: ${selectedTransaction.id}
-Date & Time: ${new Date(selectedTransaction.date_time).toLocaleString()}
-Method: ${selectedTransaction.type}
-Status: ${selectedTransaction.status}
-
-Sender:
-Username: ${currentUser?.username || 'N/A'}
-Email: ${currentUser?.email || 'N/A'}
-Account: ****${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}
-
-${recipientInfo}
-
-Amount: ${formatCurrency(selectedTransaction.amount)}
-${selectedTransaction.description ? `Memo: ${selectedTransaction.description}` : ''}
-
-======================================
-        Thank you for banking with us!
-======================================
-`;
-
-    // Create a Blob and download link
-    const blob = new Blob([receipt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `receipt-${selectedTransaction.id}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success("Receipt downloaded successfully!");
   };
 
   return (
@@ -196,7 +186,7 @@ ${selectedTransaction.description ? `Memo: ${selectedTransaction.description}` :
                             </div>
                           </TableCell>
                           <TableCell>
-                            {transaction.description || "Transaction"}
+                            {(transaction as any).description || "Transaction"}
                           </TableCell>
                           <TableCell className={`text-right font-medium ${
                             isCredit(transaction.type) ? 'text-green-600' :
@@ -208,14 +198,14 @@ ${selectedTransaction.description ? `Memo: ${selectedTransaction.description}` :
                           <TableCell className="text-right">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               <CheckCircle className="h-3 w-3 mr-1" />
-                              {transaction.status}
+                              {(transaction as any).status || 'Completed'}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => viewReceipt(transaction)}
+                              onClick={() => viewReceipt(transaction as Transaction)}
                               className="hover:text-bank-gold"
                             >
                               View Receipt
@@ -362,7 +352,7 @@ ${selectedTransaction.description ? `Memo: ${selectedTransaction.description}` :
                   className="flex items-center gap-2"
                 >
                   <Printer className="h-4 w-4" />
-                  Print Receipt
+                  Download PDF Receipt
                 </Button>
               </div>
             </div>

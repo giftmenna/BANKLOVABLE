@@ -137,8 +137,14 @@ getCurrentUser: async (): Promise<User> => {
  * User management API methods
  */
 export const users = {
-  create: async (userData: Partial<User> & { isSignup?: boolean }): Promise<User> => {
+  create: async (userData: Partial<User> & { isSignup?: boolean; password?: string; pin?: string }): Promise<User> => {
     try {
+      console.log('🔍 [API] Creating user with data:', { 
+        ...userData, 
+        password: userData.password ? '***' : undefined,
+        pin: userData.pin ? '***' : undefined
+      });
+      
       const data = { ...userData };
       if (data.isSignup) {
         delete data.isSignup;
@@ -146,32 +152,41 @@ export const users = {
           data.full_name = data.full_name;
           delete data.full_name;
         }
+        console.log('📤 [API] Sending signup request to /signup');
         const response = await api.post('/signup', data);
+        console.log('📥 [API] Signup response:', response.data);
         if (!response.data?.user) {
           throw new Error('User data missing in response');
         }
         return response.data.user;
       }
+      console.log('📤 [API] Sending user creation request to /users');
       const response = await api.post('/users', data);
+      console.log('📥 [API] User creation response:', response.data);
       if (!response.data?.user) {
         throw new Error('User data missing in response');
       }
       return response.data.user;
     } catch (error: any) {
-      console.error('Failed to create user:', error.response?.data || error.message);
+      console.error('❌ [API] Failed to create user:', error.response?.data || error.message);
       throw new Error(error.response?.data?.message || 'Failed to create user');
     }
   },
 
   getAll: async (): Promise<User[]> => {
     try {
+      console.log('🔍 [API] Fetching users...');
       const response = await api.get('/users');
+      console.log('📥 [API] Users response:', response.data);
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      return response.data;
+      // Handle both response formats: direct array or wrapped in data property
+      const users = response.data.data || response.data;
+      console.log('✅ [API] Processed users:', users);
+      return users;
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+      console.error('❌ [API] Failed to fetch users:', error);
       throw error;
     }
   },
@@ -224,17 +239,52 @@ export const users = {
     }
   },
 
-  updateAvatar: async (userId: string, data: { avatar: string }): Promise<User> => {
+  updateAvatar: async (userId: string, file: File): Promise<User> => {
     try {
-      console.log('🔄 [FRONTEND] Updating avatar for user:', userId);
-      const response = await api.patch(`/users/${userId}/avatar`, data);
-      if (!response.data?.user) {
-        throw new Error('User data missing in response');
+      console.log('🔄 [API] Starting avatar upload for user:', userId);
+      console.log('📁 [API] File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      console.log('📤 [API] Sending request to server...');
+      const response = await api.patch(`/users/${userId}/avatar`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      console.log('✅ [API] Server response received:', {
+        status: response.status,
+        data: response.data
+      });
+      
+      if (!response.data?.data?.avatar) {
+        console.error('❌ [API] No avatar in response data:', response.data);
+        throw new Error('Server did not return avatar path');
       }
-      console.log('✅ [FRONTEND] Avatar update response:', response.data);
-      return response.data.user;
+      
+      console.log('✅ [API] Avatar path from server:', response.data.data.avatar);
+      
+      // Return user object with avatar path
+      return {
+        id: userId,
+        username: '',
+        email: '',
+        full_name: '',
+        avatar: response.data.data.avatar,
+      } as User;
     } catch (error: any) {
-      console.error('❌ [FRONTEND] Failed to update avatar:', error.response?.data || error.message);
+      console.error('❌ [API] Avatar upload failed:', error);
+      console.error('❌ [API] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw new Error(error.response?.data?.message || 'Failed to update avatar');
     }
   },
@@ -256,7 +306,9 @@ export const users = {
         throw new Error('No data received from server');
       }
       console.log('✅ [FRONTEND] PIN verification response:', response.data);
-      return response.data.valid;
+      // Handle both response formats: direct object or wrapped in data property
+      const result = response.data.data || response.data;
+      return result.valid;
     } catch (error: any) {
       console.error('❌ [FRONTEND] Failed to verify PIN:', error.response?.data || error.message);
       throw new Error(error.response?.data?.message || 'Failed to verify PIN');
@@ -274,7 +326,8 @@ export const transactions = {
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      return response.data;
+      // Handle both response formats: direct array or wrapped in data property
+      return response.data.data || response.data;
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
       return [];
@@ -283,13 +336,25 @@ export const transactions = {
 
   create: async (transactionData: Transaction): Promise<Transaction> => {
     try {
+      console.log('📤 [API] Creating transaction:', transactionData);
       const response = await api.post('/transactions', transactionData);
+      console.log('✅ [API] Transaction creation response:', response.data);
+      
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      return response.data;
-    } catch (error) {
-      console.error('Failed to create transaction:', error);
+      
+      // Handle both response formats: direct object or wrapped in data property
+      const transaction = response.data.data || response.data;
+      console.log('✅ [API] Transaction created successfully:', transaction);
+      return transaction;
+    } catch (error: any) {
+      console.error('❌ [API] Failed to create transaction:', error);
+      console.error('❌ [API] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw error;
     }
   },
@@ -309,7 +374,8 @@ export const transactions = {
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      return response.data;
+      // Handle both response formats: direct array or wrapped in data property
+      return response.data.data || response.data;
     } catch (error) {
       console.error('Failed to fetch transactions for user:', error);
       throw error;
@@ -327,7 +393,8 @@ export const settings = {
       if (!response.data) {
         throw new Error('No data received from server');
       }
-      return response.data;
+      // Handle both response formats: direct object or wrapped in data property
+      return response.data.data || response.data;
     } catch (error) {
       console.error('Failed to fetch settings:', error);
       throw error;

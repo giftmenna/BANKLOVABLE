@@ -15,6 +15,7 @@ import AdminSettings from "./pages/AdminSettings";
 import Dashboard from "./pages/user/Dashboard";
 import TransactionHistory from "./pages/user/TransactionHistory";
 import TransferMoney from "./pages/user/TransferMoney";
+import Profile from "./pages/user/Profile";
 import ForexDemo from "./pages/ForexDemo";
 import BudgetPlanner from "./pages/BudgetPlanner";
 import LoanCalculator from "./pages/LoanCalculator";
@@ -91,6 +92,7 @@ const App = () => (
             <Route path="/loan-calculator" element={<LoanCalculator />} />
             <Route path="/savings-goal-calculator" element={<SavingsGoalCalculator />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
             <Route path="/transfer" element={<ProtectedRoute><TransferMoney /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />

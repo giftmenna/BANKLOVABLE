@@ -20,6 +20,8 @@ import api from "@/services/api";
 import { z } from "zod";
 import { CheckCircle, Printer } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { generatePDFReceipt } from "@/components/PDFReceipt";
+import { showTransactionNotification } from "@/utils/notifications";
 
 const { users, transactions, settings } = api;
 
@@ -33,7 +35,7 @@ class ErrorBoundary extends Component<React.PropsWithChildren<{}>> {
       return (
         <div className="text-center p-4">
           <h2 className="text-xl font-bold text-destructive">Something went wrong</h2>
-          <p>{this.state.error?.message || "Please try again later."}</p>
+          <p>{(this.state.error as any)?.message || "Please try again later."}</p>
           <Button onClick={() => window.location.reload()} className="mt-4">
             Try Again
           </Button>
@@ -118,10 +120,10 @@ export default function TransferMoney() {
           return;
         }
         const userResponse = await users.getById(currentUser.id);
-        setBalance(parseFloat(userResponse.balance) || 0);
+        setBalance(parseFloat(String(userResponse.balance || 0)));
         
         const settingsResponse = await settings.getAll();
-        setMinimumBalance(parseFloat(settingsResponse.minimum_balance) || 0);
+        setMinimumBalance(parseFloat(String(settingsResponse.minimum_balance || 0)));
       } catch (error) {
         console.error("Error fetching user data:", error);
         toast.error("Failed to load your account data.");
@@ -169,22 +171,29 @@ export default function TransferMoney() {
       throw new Error("User not authenticated.");
     }
 
-    console.log("Verifying PIN for user:", { userId: currentUser.id, pin });
+    console.log("🔍 [TransferMoney] Verifying PIN for user:", { 
+      userId: currentUser.id, 
+      pin: pin,
+      pinLength: pin.length,
+      pinType: typeof pin
+    });
 
     // ✅ FIXED: call verifyPin from destructured 'users'
     const pinResponse = await users.verifyPin(currentUser.id, pin);
 
-    console.log("PIN verification response:", pinResponse);
+    console.log("✅ [TransferMoney] PIN verification response:", pinResponse);
 
-    if (!pinResponse.valid) {
+    if (!pinResponse) {
+      console.log("❌ [TransferMoney] PIN verification failed - invalid PIN");
       toast.error("Invalid PIN. Please try again.");
       setIsLoading(false);
       return;
     }
 
+    console.log("✅ [TransferMoney] PIN verification successful, starting transaction");
     startTransactionProcess();
   } catch (error) {
-    console.error("Error verifying PIN:", error);
+    console.error("❌ [TransferMoney] Error verifying PIN:", error);
     toast.error("Failed to verify PIN. Please try again.");
     setIsLoading(false);
     }
@@ -202,7 +211,10 @@ export default function TransferMoney() {
       
       if (progress >= 100) {
         clearInterval(interval);
-        completeTransaction();
+        // Add a small delay to ensure the progress bar shows 100%
+        setTimeout(() => {
+          completeTransaction();
+        }, 500);
       }
     }, 1000);
   };
@@ -210,9 +222,13 @@ export default function TransferMoney() {
   // Process the transaction after the animation completes
   const completeTransaction = async () => {
     try {
+      console.log('🔄 Starting transaction completion...');
+      
       if (!currentUser?.id) {
         throw new Error("User not authenticated.");
       }
+      
+      console.log('✅ User authenticated, preparing transaction data...');
       let recipientDetails;
       
       switch (currentTransaction.transferType) {
@@ -225,7 +241,7 @@ export default function TransferMoney() {
             bankAddress: currentTransaction.bankAddress,
           };
           break;
-           case "Bank Transfer":
+        case "Bank Transfer":
           recipientDetails = {
             name: currentTransaction.recipientName,
             accountNumber: currentTransaction.accountNumber,
@@ -239,94 +255,123 @@ export default function TransferMoney() {
           break;
       }
       
-      const response = await transactions.create({
+      console.log('📤 Creating transaction in database...');
+      const transactionData = {
         user_id: currentUser.id,
         type: "Transfer", // All transfer types should be "Transfer" for balance updates
         amount: currentTransaction.amount,
-        description: currentTransaction.memo || `${currentTransaction.transferType} Transaction`,
         date_time: new Date().toISOString(),
-        status: "Completed",
-        recipient_details: recipientDetails,
-      });
+      };
       
-      setCurrentTransaction({
+      console.log('📋 Transaction data:', transactionData);
+      
+      const response = await transactions.create(transactionData as any);
+      console.log('✅ Transaction created successfully:', response);
+      
+      const completedTransaction = {
         ...currentTransaction,
-        id: response.transaction?.id || `TXN${Math.floor(Math.random() * 1000000)}`,
+        id: (response as any).id || `TXN${Math.floor(Math.random() * 1000000)}`,
         date_time: new Date().toISOString(),
         status: "Completed",
         recipient_details: recipientDetails,
+      };
+      
+      console.log('📝 Setting completed transaction:', completedTransaction);
+      setCurrentTransaction(completedTransaction);
+      
+      console.log('🔊 Playing notification sound...');
+      // Play notification sound for successful transaction
+      let notificationMessage;
+      try {
+        notificationMessage = await showTransactionNotification(
+          'sent', 
+          currentTransaction.amount, 
+          `${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`
+        );
+      } catch (soundError) {
+        console.warn('⚠️ Notification sound failed, continuing without sound:', soundError);
+        notificationMessage = `💸 Sent $${currentTransaction.amount.toFixed(2)} - ${currentTransaction.transferType} to ${currentTransaction.recipientName || currentTransaction.recipientIdentifier}`;
+      }
+      
+      console.log('📢 Showing success toast...');
+      // Show success toast with sound for 30 seconds
+      toast.success(notificationMessage, {
+        duration: 30000, // 30 seconds
+        position: "top-center",
       });
       
+      console.log('✅ Transaction completed successfully!');
       setShowLoadingAnimation(false);
       setShowCompletion(true);
-    } catch (error) {
-      console.error("Error completing transaction:", error);
+      
+    } catch (error: any) {
+      console.error("❌ Error completing transaction:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        stack: error.stack,
+        currentUser: currentUser?.id,
+        transactionData: currentTransaction
+      });
+      
       toast.error("Transaction failed. Please try again.");
+      setShowLoadingAnimation(false);
       navigate("/dashboard");
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Print receipt
-  const printReceipt = () => {
-    if (!currentTransaction) return;
+  // Generate PDF receipt
+  const printReceipt = async () => {
+    if (!currentTransaction || !currentUser) return;
     
-    let recipientInfo = "";
-    if (currentTransaction.transferType === "Bank Transfer") {
-      recipientInfo = `
-Recipient: ${currentTransaction.recipientName}
-Account Number: ****${currentTransaction.accountNumber.slice(-4)}
-Routing Number: ${currentTransaction.routingNumber}`;
-    } else if (currentTransaction.transferType === "Wire Transfer") {
-      recipientInfo = `
-Recipient: ${currentTransaction.recipientName}
-Account Number: ****${currentTransaction.accountNumber.slice(-4)}
-SWIFT Code: ${currentTransaction.swiftCode}
-Bank Name: ${currentTransaction.bankName}
-Bank Address: ${currentTransaction.bankAddress}`;
-    } else if (currentTransaction.transferType === "P2P") {
-      const identifier = currentTransaction.recipientIdentifier;
-      recipientInfo = `
-Recipient: ${identifier.includes('@') ? 'Email' : 'Phone'}: ${identifier}`;
+    try {
+      // Prepare recipient data based on transfer type
+      let recipientData: any = {
+        name: currentTransaction.recipientName || currentTransaction.recipientIdentifier
+      };
+
+      if (currentTransaction.transferType === "Bank Transfer") {
+        recipientData = {
+          name: currentTransaction.recipientName,
+          accountNumber: currentTransaction.accountNumber,
+          routingNumber: currentTransaction.routingNumber
+        };
+      } else if (currentTransaction.transferType === "Wire Transfer") {
+        recipientData = {
+          name: currentTransaction.recipientName,
+          accountNumber: currentTransaction.accountNumber,
+          swiftCode: currentTransaction.swiftCode,
+          bankName: currentTransaction.bankName,
+          bankAddress: currentTransaction.bankAddress
+        };
+      } else if (currentTransaction.transferType === "P2P") {
+        recipientData = {
+          name: currentTransaction.recipientIdentifier,
+          identifier: currentTransaction.recipientIdentifier
+        };
+      }
+
+      const receiptData = {
+        transactionId: currentTransaction.id,
+        dateTime: currentTransaction.date_time,
+        transferType: currentTransaction.transferType,
+        status: currentTransaction.status,
+        sender: {
+          username: currentUser.username,
+          email: currentUser.email
+        },
+        recipient: recipientData,
+        amount: currentTransaction.amount,
+        memo: currentTransaction.memo
+      };
+
+      await generatePDFReceipt(receiptData);
+      toast.success("PDF receipt generated successfully!");
+    } catch (error) {
+      console.error("Error generating PDF receipt:", error);
+      toast.error("Failed to generate PDF receipt. Please try again.");
     }
-    
-    const receipt = `
-======================================
-           TRANSACTION RECEIPT
-======================================
-Nivalus Bank - Your Trusted Financial Partner
-
-Transaction ID: ${currentTransaction.id}
-Date & Time: ${new Date(currentTransaction.date_time).toLocaleString()}
-Method: ${currentTransaction.transferType}
-Status: ${currentTransaction.status}
-
-Sender:
-Username: ${currentUser?.username || 'N/A'}
-Email: ${currentUser?.email || 'N/A'}
-Account: ****${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}
-
-${recipientInfo}
-
-Amount: ${formatCurrency(currentTransaction.amount)}
-${currentTransaction.memo ? `Memo: ${currentTransaction.memo}` : ''}
-
-======================================
-        Thank you for banking with us!
-======================================
-`;
-    
-    const blob = new Blob([receipt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `receipt-${currentTransaction.id}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Receipt downloaded successfully!");
   };
 
   console.log("Rendering with states:", {
@@ -808,7 +853,7 @@ ${currentTransaction.memo ? `Memo: ${currentTransaction.memo}` : ''}
                       className="flex-1 flex items-center justify-center gap-2"
                     >
                       <Printer className="h-4 w-4" />
-                      Print Receipt
+                      Download PDF Receipt
                     </Button>
                     <Button 
                       onClick={() => navigate('/dashboard')} 

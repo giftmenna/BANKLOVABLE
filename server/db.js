@@ -216,24 +216,36 @@ export const db = {
 
   // Update user avatar
   updateUserAvatar: async (userId, avatar) => {
-    console.log(`🔍 Updating avatar for user ID: ${userId}`);
+    console.log(`🔍 [DB] Updating avatar for user ID: ${userId}`);
+    console.log(`🔍 [DB] Avatar path: ${avatar}`);
+    
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      console.log(`🔍 [DB] Transaction started`);
+      
       const result = await client.query(
         `UPDATE users SET avatar = $2 WHERE id = $1 
          RETURNING id, full_name, username, email, phone, status, balance, is_admin, avatar`,
         [userId, avatar]
       );
+      
+      console.log(`🔍 [DB] Update query executed, rows affected: ${result.rowCount}`);
+      
       if (result.rowCount === 0) {
+        console.log(`❌ [DB] User not found: ${userId}`);
         throw new Error('User not found');
       }
+      
       await client.query('COMMIT');
-      console.log(`✅ User avatar updated: ${userId}`);
+      console.log(`✅ [DB] User avatar updated successfully: ${userId}`);
+      console.log(`✅ [DB] Updated user data:`, result.rows[0]);
+      
       return result.rows[0];
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('❌ Error updating user avatar:', error.message, error.stack);
+      console.error('❌ [DB] Error updating user avatar:', error.message);
+      console.error('❌ [DB] Error stack:', error.stack);
       throw error;
     } finally {
       client.release();
