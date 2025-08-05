@@ -540,7 +540,7 @@ export default function TransferMoney() {
                               <FormItem>
                                 <FormLabel>Bank Name</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Chase Bank" {...field} />
+                                  <Input placeholder="Nivalus Bank" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>

@@ -603,7 +603,7 @@ export default function Dashboard() {
                   onClick={() => navigate("/transactions")}
                   className="text-bank-gold hover:text-bank-gold/80"
                 >
-                  View All Transactions
+                  View All Transactions And Download PDF
                 </Button>
               </CardFooter>
             </Card>
